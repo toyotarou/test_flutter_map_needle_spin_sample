@@ -7,7 +7,7 @@ void main() {
   runApp(const MyApp());
 }
 
-/// Web Mercator を用いた LatLng → ピクセル座標変換
+///
 Offset latLngToPixel(LatLng latlng, double zoom) {
   final double latRad = latlng.latitude * pi / 180;
   final num scale = 256 * pow(2, zoom);
@@ -16,7 +16,6 @@ Offset latLngToPixel(LatLng latlng, double zoom) {
   return Offset(x, y);
 }
 
-/// アプリ本体
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -30,7 +29,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-/// 地図上で針が回るページ
 class MapSpinPage extends StatefulWidget {
   const MapSpinPage({super.key});
 
@@ -39,32 +37,26 @@ class MapSpinPage extends StatefulWidget {
 }
 
 class _MapSpinPageState extends State<MapSpinPage> with SingleTickerProviderStateMixin {
-  // GlobalKey を使って FlutterMap にアクセス（型指定なし）
   final GlobalKey _mapKey = GlobalKey();
 
   late AnimationController _controller;
+
   late Animation<double> _animation;
 
-  // 現在の針の回転角度（次回の開始角度用）
   double _currentPointerAngle = 0.0;
 
-  // 回転完了時の針先の向き（度数表示）
   double? finalPointerAngleDegrees;
 
-  // 針の長さ係数（CustomPaint の width に対する割合、初期値 0.4）
   double _needleFactor = 0.4;
 
-  // 長方形表示のON/OFF
-  bool _showRectangle = true;
+  bool _showRectangle = false;
 
-  // MapController と現在のズームレベル（初期は 16.0）
   final MapController _mapController = MapController();
+
   double _currentZoom = 16.0;
 
-  // 中心座標（指定座標）
   final LatLng _centerCoord = const LatLng(35.718532, 139.586639);
 
-  // 追加マーカー（中心座標付近にいくつか配置）
   final List<LatLng> _additionalMarkers = <LatLng>[
     const LatLng(35.718662, 139.586794),
     const LatLng(35.718563, 139.586541),
@@ -88,56 +80,56 @@ class _MapSpinPageState extends State<MapSpinPage> with SingleTickerProviderStat
     const LatLng(35.718677, 139.586835)
   ];
 
+  ///
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    );
+    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 3));
 
-    // 初期は針の回転角度 0（上向き＝針先は北）に固定
     _animation = Tween<double>(begin: 0.0, end: 0.0).animate(_controller);
 
     _animation.addStatusListener((AnimationStatus status) {
       if (status == AnimationStatus.completed) {
-        // PointerPainter は針を上向きで描画しているため、
-        // アニメーション値そのものをコンパス角度とみなす
         double compassAngle = _animation.value % (2 * pi);
+
         if (compassAngle < 0) {
           compassAngle += 2 * pi;
         }
-        setState(() {
-          finalPointerAngleDegrees = compassAngle * 180 / pi;
-        });
+
+        setState(() => finalPointerAngleDegrees = compassAngle * 180 / pi);
       }
     });
   }
 
+  ///
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
-  /// 針をランダムに回転させる処理（2～5回転）
+  ///
   void _spinPointer() {
     final Random random = Random();
-    final double randomTurns = random.nextDouble() * 3 + 2; // 2〜5周
+
+    final double randomTurns = random.nextDouble() * 3 + 2;
+
     final double newAngle = _currentPointerAngle + (2 * pi * randomTurns);
 
-    _animation = Tween<double>(begin: _currentPointerAngle, end: newAngle)
-        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    _animation = Tween<double>(begin: _currentPointerAngle, end: newAngle).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
 
-    setState(() {
-      finalPointerAngleDegrees = null;
-    });
+    setState(() => finalPointerAngleDegrees = null);
+
     _controller.reset();
+
     _controller.forward();
+
     _currentPointerAngle = newAngle;
   }
 
-  /// ズームイン：現在のズームレベルを上げる
+  ///
   void _zoomIn() {
     setState(() {
       _currentZoom += 1;
@@ -145,7 +137,7 @@ class _MapSpinPageState extends State<MapSpinPage> with SingleTickerProviderStat
     });
   }
 
-  /// ズームアウト：現在のズームレベルを下げる
+  ///
   void _zoomOut() {
     setState(() {
       _currentZoom -= 1;
@@ -153,57 +145,37 @@ class _MapSpinPageState extends State<MapSpinPage> with SingleTickerProviderStat
     });
   }
 
-  /// 針を長くする
-  void _increaseNeedle() {
-    setState(() {
-      _needleFactor += 0.05;
-    });
-  }
+  ///
+  void _increaseNeedle() => setState(() => _needleFactor += 0.5);
 
-  /// 針を短くする（最小値 0.05）
-  void _decreaseNeedle() {
-    setState(() {
-      _needleFactor = max(0.05, _needleFactor - 0.05);
-    });
-  }
+  ///
+  void _decreaseNeedle() => setState(() => _needleFactor = max(0.5, _needleFactor - 0.5));
 
-  /// 長方形の表示／非表示を切り替える
-  void _toggleRectangle() {
-    setState(() {
-      _showRectangle = !_showRectangle;
-    });
-  }
+  ///
+  void _toggleRectangle() => setState(() => _showRectangle = !_showRectangle);
 
-  /// 長方形内に含まれる追加マーカーをチェックし、結果をボトムシートに表示する
+  ///
   void _checkMarkersInRectangle() {
-    // Pointer ウィジェットサイズは 200×200、中心は (100,100)
     const double widgetSize = 200.0;
+
     const Offset widgetCenter = Offset(widgetSize / 2, widgetSize / 2);
-    // PointerPainter 内の計算に合わせた針の長さと長方形の幅
+
     final double needleLength = widgetSize * _needleFactor;
+
     final double rectWidth = needleLength * 0.2;
-    // 長方形（未回転状態）は上方向：中心から needleLength 分上、幅 = rectWidth, 高さ = needleLength
-    final Rect rect = Rect.fromLTWH(
-      widgetCenter.dx - rectWidth / 2,
-      widgetCenter.dy - needleLength,
-      rectWidth,
-      needleLength,
-    );
+
+    final Rect rect =
+        Rect.fromLTWH(widgetCenter.dx - rectWidth / 2, widgetCenter.dy - needleLength, rectWidth, needleLength);
 
     final List<LatLng> insideMarkers = <LatLng>[];
 
-    // 追加マーカーの画面上の座標を自前の変換式で取得
     for (final LatLng marker in _additionalMarkers) {
       final Offset markerPixel = latLngToPixel(marker, _currentZoom);
-      final Offset centerPixel = latLngToPixel(_centerCoord, _currentZoom);
-      // Marker の画面上の相対位置を求める
-      final Offset relative = Offset(
-            markerPixel.dx - centerPixel.dx,
-            markerPixel.dy - centerPixel.dy,
-          ) +
-          widgetCenter;
 
-      // Transform.rotate による回転分を逆に戻す
+      final Offset centerPixel = latLngToPixel(_centerCoord, _currentZoom);
+
+      final Offset relative = Offset(markerPixel.dx - centerPixel.dx, markerPixel.dy - centerPixel.dy) + widgetCenter;
+
       final Offset unrotated = _rotateOffset(relative, -_animation.value, widgetCenter);
 
       if (rect.contains(unrotated)) {
@@ -223,11 +195,7 @@ class _MapSpinPageState extends State<MapSpinPage> with SingleTickerProviderStat
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    const Text('長方形内のマーカー：',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        )),
+                    const Text('長方形内のマーカー：', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 10),
                     ...insideMarkers.map((LatLng m) => Text('Lat: ${m.latitude}, Lng: ${m.longitude}'))
                   ],
@@ -237,16 +205,19 @@ class _MapSpinPageState extends State<MapSpinPage> with SingleTickerProviderStat
     );
   }
 
-  /// 指定された point を center を基準に angle だけ回転させた Offset を返す
+  ///
   Offset _rotateOffset(Offset point, double angle, Offset center) {
     final Offset translated = point - center;
+
     final Offset rotated = Offset(
       translated.dx * cos(angle) - translated.dy * sin(angle),
       translated.dx * sin(angle) + translated.dy * cos(angle),
     );
+
     return rotated + center;
   }
 
+  ///
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -270,9 +241,7 @@ class _MapSpinPageState extends State<MapSpinPage> with SingleTickerProviderStat
               initialZoom: _currentZoom,
               minZoom: _currentZoom,
               maxZoom: _currentZoom,
-              onPositionChanged: (MapCamera position, bool hasGesture) {
-                _mapController.rotate(0);
-              },
+              onPositionChanged: (MapCamera position, bool hasGesture) => _mapController.rotate(0),
             ),
             children: <Widget>[
               TileLayer(
@@ -287,17 +256,10 @@ class _MapSpinPageState extends State<MapSpinPage> with SingleTickerProviderStat
                     height: 200,
                     child: AnimatedBuilder(
                       animation: _animation,
-                      builder: (BuildContext context, Widget? child) {
-                        return Transform.rotate(
-                          angle: _animation.value,
-                          child: child,
-                        );
-                      },
+                      builder: (BuildContext context, Widget? child) =>
+                          Transform.rotate(angle: _animation.value, child: child),
                       child: CustomPaint(
-                        painter: PointerPainter(
-                          needleFactor: _needleFactor,
-                          showRectangle: _showRectangle,
-                        ),
+                        painter: PointerPainter(needleFactor: _needleFactor, showRectangle: _showRectangle),
                       ),
                     ),
                   ),
@@ -309,12 +271,7 @@ class _MapSpinPageState extends State<MapSpinPage> with SingleTickerProviderStat
                     point: latlng,
                     width: 20,
                     height: 20,
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        color: Colors.blue,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
+                    child: Container(decoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle)),
                   );
                 }).toList(),
               ),
@@ -329,11 +286,7 @@ class _MapSpinPageState extends State<MapSpinPage> with SingleTickerProviderStat
                   ? Container()
                   : Text(
                       '針先の向き: ${finalPointerAngleDegrees!.toStringAsFixed(2)}° (${getCompassDirection(finalPointerAngleDegrees!)})',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        color: Colors.black,
-                        backgroundColor: Colors.white70,
-                      ),
+                      style: const TextStyle(fontSize: 20, color: Colors.black, backgroundColor: Colors.white70),
                     ),
             ),
           ),
@@ -342,17 +295,9 @@ class _MapSpinPageState extends State<MapSpinPage> with SingleTickerProviderStat
             left: 10,
             child: Column(
               children: <Widget>[
-                FloatingActionButton(
-                  onPressed: _zoomIn,
-                  mini: true,
-                  child: const Icon(Icons.add),
-                ),
+                FloatingActionButton(onPressed: _zoomIn, mini: true, child: const Icon(Icons.add)),
                 const SizedBox(height: 10),
-                FloatingActionButton(
-                  onPressed: _zoomOut,
-                  mini: true,
-                  child: const Icon(Icons.remove),
-                ),
+                FloatingActionButton(onPressed: _zoomOut, mini: true, child: const Icon(Icons.remove)),
               ],
             ),
           ),
@@ -384,23 +329,17 @@ class _MapSpinPageState extends State<MapSpinPage> with SingleTickerProviderStat
             left: 0,
             right: 0,
             child: Center(
-              child: ElevatedButton(
-                onPressed: _checkMarkersInRectangle,
-                child: const Text('長方形内のマーカーをチェック'),
-              ),
+              child: ElevatedButton(onPressed: _checkMarkersInRectangle, child: const Text('長方形内のマーカーをチェック')),
             ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _spinPointer,
-        child: const Icon(Icons.refresh),
-      ),
+      floatingActionButton: FloatingActionButton(onPressed: _spinPointer, child: const Icon(Icons.refresh)),
     );
   }
 }
 
-/// 16方位を返すヘルパー関数
+///
 String getCompassDirection(double degrees) {
   const List<String> directions = <String>[
     '北',
@@ -420,49 +359,52 @@ String getCompassDirection(double degrees) {
     '北西',
     '北北西'
   ];
+
   final int index = (((degrees + 11.25) % 360) / 22.5).floor() % 16;
+
   return directions[index];
 }
 
-/// PointerPainter：針とその周りの長方形を描画する
 class PointerPainter extends CustomPainter {
+  const PointerPainter({required this.needleFactor, required this.showRectangle});
 
-  const PointerPainter({
-    required this.needleFactor,
-    required this.showRectangle,
-  });
   final double needleFactor;
+
   final bool showRectangle;
 
+  ///
   @override
   void paint(Canvas canvas, Size size) {
     final Offset center = Offset(size.width / 2, size.height / 2);
+
     final double needleLength = size.width * needleFactor;
+
     final Offset needleEnd = Offset(center.dx, center.dy - needleLength);
 
     final Paint needlePaint = Paint()
       ..color = Colors.red
       ..strokeWidth = 4.0
       ..strokeCap = StrokeCap.round;
+
     canvas.drawLine(center, needleEnd, needlePaint);
+
     canvas.drawCircle(center, 6.0, Paint()..color = Colors.black);
 
     if (showRectangle) {
       final double rectWidth = needleLength * 0.2;
-      final Rect rect = Rect.fromLTWH(
-        center.dx - rectWidth / 2,
-        center.dy - needleLength,
-        rectWidth,
-        needleLength,
-      );
+
+      final Rect rect = Rect.fromLTWH(center.dx - rectWidth / 2, center.dy - needleLength, rectWidth, needleLength);
+
       final Paint rectPaint = Paint()
         ..color = Colors.blue
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0;
+
       canvas.drawRect(rect, rectPaint);
     }
   }
 
+  ///
   @override
   bool shouldRepaint(covariant PointerPainter oldDelegate) =>
       oldDelegate.needleFactor != needleFactor || oldDelegate.showRectangle != showRectangle;
